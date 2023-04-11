@@ -7,7 +7,8 @@ package com.sean.chatgpt.pojo.chat;
  * @author zengyusheng
  * @date 2023/04/09
  */
-public class Message {
+
+public class Message  {
 
     private String role;
     private String content;
@@ -31,6 +32,8 @@ public class Message {
         this.role = role;
         this.content = content;
     }
+
+    public Message() {}
 
     public String getRole() {
         return role;

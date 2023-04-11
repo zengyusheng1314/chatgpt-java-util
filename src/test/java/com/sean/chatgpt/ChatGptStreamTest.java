@@ -2,37 +2,39 @@ package com.sean.chatgpt;
 
 import com.sean.chatgpt.api.ApiInterface;
 import com.sean.chatgpt.enums.ChatGptModelEnum;
+import com.sean.chatgpt.listener.ConsoleStreamListener;
 import com.sean.chatgpt.pojo.chat.ChatCompletionRequest;
 import com.sean.chatgpt.pojo.chat.Message;
 import com.sean.chatgpt.util.Proxys;
+import okhttp3.sse.EventSource;
+import okhttp3.sse.EventSourceListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.Before;
 import org.junit.Test;
 
-
+import java.io.IOException;
 import java.net.Proxy;
 import java.util.Arrays;
-
-
+import java.util.concurrent.CountDownLatch;
 
 /**
- * 测试
+ * ChatGpt 聊天流测试
  *
  * @author zengyusheng
- * @date 2023/04/10 13:46
+ * @date 2023/04/10 20:23
  */
-
-
-public class ChatGptTest {
+public class ChatGptStreamTest {
 
     private static final Logger log = LogManager.getLogger(ChatGptTest.class);
-    private  ChatGpt chatGpt;
+    private  ChatGptStream chatGpt;
 
     @Before
     public void before() {
         Proxy proxy = Proxys.http("127.0.0.1", 10809);
-        chatGpt = new ChatGpt.ChatGptBuilder()
+        chatGpt = new ChatGptStream.ChatGptBuilder()
                 .setApiKey("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")
                 .setTimeout(300)
                 .setProxy(proxy)
@@ -42,21 +44,20 @@ public class ChatGptTest {
     }
 
     @Test
-    public void chat() {
-      String message =  chatGpt.chat("写一首赞美王子哥的词");
-        log.info("\n"+message);
-    }
-
-    @Test
-    public void chat2() {
-        Message message = Message.of("写一段七言绝句诗，题目是：火锅！");
+    public void chat() throws IOException {
+        Message message = Message.of("写一段七言绝句诗");
         ChatCompletionRequest chatCompletion = new ChatCompletionRequest.ChatCompletionBuilder()
                 .setModel(ChatGptModelEnum.GPT_3_5_TURBO.getName())
                 .setMessages(Arrays.asList(message))
                 .build();
-        String resultMessage =  chatGpt.chat(chatCompletion);
-
-        log.info("\n"+resultMessage);
+        ConsoleStreamListener consoleStreamListener =new ConsoleStreamListener();
+        chatGpt.streamChatCompletion(chatCompletion, consoleStreamListener);
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        try {
+            countDownLatch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
 }

@@ -3,7 +3,7 @@ package com.sean.chatgpt.pojo.chat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 1
+ * chat 内容
  *
  * @author zengyusheng
  * @date 2023/04/10 09:23

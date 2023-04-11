@@ -111,10 +111,10 @@ public class ChatCompletionRequest implements Serializable {
 
         private String model;
         private List<Message> messages;
-        private double temperature =DEFAULT_TEMPERATURE;
+        private double temperature = DEFAULT_TEMPERATURE;
         private double topP = DEFAULT_TOP_P;
-        private Integer n;
-        private boolean stream;
+        private Integer n =DEFAULT_N;
+        private boolean stream =DEFAULT_STREAM;
         private List<String> stop;
         private Integer maxTokens;
         private double presencePenalty;
@@ -192,6 +192,10 @@ public class ChatCompletionRequest implements Serializable {
             return this;
         }
 
+    }
+
+    public void setStream(boolean stream) {
+        this.stream = stream;
     }
 
     public String getModel() {

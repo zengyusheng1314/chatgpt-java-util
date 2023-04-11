@@ -1,6 +1,9 @@
 package com.sean.chatgpt;
 
+import cn.hutool.http.ContentType;
+import cn.hutool.http.Header;
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sean.chatgpt.api.ApiInterface;
 import com.sean.chatgpt.enums.ChatGptModelEnum;
@@ -9,16 +12,18 @@ import com.sean.chatgpt.pojo.chat.ChatCompletionRequest;
 import com.sean.chatgpt.pojo.chat.ChatCompletionResponse;
 import com.sean.chatgpt.pojo.chat.Message;
 import okhttp3.*;
+import okhttp3.internal.Util;
+import okhttp3.sse.EventSource;
+import okhttp3.sse.EventSourceListener;
+import okhttp3.sse.EventSources;
+import okio.BufferedSource;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.net.Proxy;
 import java.util.Arrays;
-
-import cn.hutool.http.ContentType;
-import cn.hutool.http.Header;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -27,9 +32,9 @@ import java.util.concurrent.TimeUnit;
  * @author zengyusheng
  * @date 2023/04/10 09:39
  */
-public class ChatGpt {
+public class ChatGptStream {
 
-    private static final Logger log = LogManager.getLogger(ChatGpt.class);
+    private static final Logger log = LogManager.getLogger(ChatGptStream.class);
 
     /**
      * key
@@ -54,8 +59,35 @@ public class ChatGpt {
      */
     private Proxy proxy;
 
+    public void streamChatCompletion(ChatCompletionRequest chatCompletion, EventSourceListener eventSourceListener) {
+        chatCompletion.setStream(true);
+        RequestBody requestBody = null;
+        try {
+            requestBody = RequestBody.create(new ObjectMapper().writeValueAsString(chatCompletion), MediaType.parse(ContentType.JSON.getValue()));
+        } catch (JsonProcessingException e) {
+            throw new ChatException("json转换异常！");
+        }
+        EventSource.Factory factory = EventSources.createFactory(okHttpClient);
+        Request request = new Request.Builder()
+                .url(apiHost + apiMethod)
+                .post(requestBody)
+                .header(Header.AUTHORIZATION.getValue(), "Bearer " + apiKey)
+                .header(Header.CONTENT_TYPE.getValue(), ContentType.JSON.getValue())
+                .build();
+        factory.newEventSource(request, eventSourceListener);
 
-    public ChatGpt(ChatGptBuilder builder) {
+    }
+
+    public void streamChatCompletion(List<Message> messages,
+                                     EventSourceListener eventSourceListener) {
+        ChatCompletionRequest chatCompletion = new ChatCompletionRequest.ChatCompletionBuilder()
+                .setMessages(messages)
+                .setStream(true)
+                .build();
+        streamChatCompletion(chatCompletion, eventSourceListener);
+    }
+
+    public ChatGptStream(ChatGptBuilder builder) {
         this.apiKey = builder.apiKey;
         this.apiHost = builder.apiHost;
         this.apiMethod = builder.apiMethod;
@@ -64,34 +96,6 @@ public class ChatGpt {
         this.okHttpClient = builder.okHttpClient;
     }
 
-    /**
-     * chatgpt 3.5 chat
-     * @param message
-     * @return
-     */
-    public String chat(String message) {
-        ChatCompletionRequest chatCompletion = new ChatCompletionRequest.ChatCompletionBuilder()
-                .setModel(ChatGptModelEnum.GPT_3_5_TURBO.getName())
-                .setMessages(Arrays.asList(Message.of(message)))
-                .build();
-        ChatCompletionResponse response = null;
-        try {
-            response = this.chatCompletion(chatCompletion);
-        } catch (IOException e) {
-            throw new ChatException("接口响应失败！", e);
-        }
-        return response.getChoices().get(0).getMessage().getContent();
-    }
-
-    public String chat(ChatCompletionRequest chatCompletion) {
-        ChatCompletionResponse response = null;
-        try {
-            response = this.chatCompletion(chatCompletion);
-        } catch (IOException e) {
-            throw new ChatException("接口响应失败！", e);
-        }
-        return response.getChoices().get(0).getMessage().getContent();
-    }
 
     public static class ChatGptBuilder {
         private String apiKey;
@@ -101,7 +105,7 @@ public class ChatGpt {
         private long timeout = 300;
         private Proxy proxy = Proxy.NO_PROXY;
 
-        public ChatGpt build() {
+        public ChatGptStream build() {
             if (null == okHttpClient) {
                 okHttpClient = new OkHttpClient().newBuilder()
                         .connectTimeout(timeout, TimeUnit.SECONDS)
@@ -110,7 +114,7 @@ public class ChatGpt {
                         .proxy(proxy)
                         .build();
             }
-            return new ChatGpt(this);
+            return new ChatGptStream(this);
         }
 
         public ChatGptBuilder setApiKey(String apiKey) {
@@ -143,27 +147,6 @@ public class ChatGpt {
             return this;
         }
     }
-
-
-    private ChatCompletionResponse chatCompletion(ChatCompletionRequest chatCompletion) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        String requestBody = mapper.writeValueAsString(chatCompletion);
-        Request request = new Request.Builder()
-                .url(apiHost + apiMethod)
-                .post(RequestBody.create(requestBody, MediaType.parse(ContentType.JSON.getValue())))
-                .header(Header.AUTHORIZATION.getValue(), "Bearer " + apiKey)
-                .header(Header.CONTENT_TYPE.getValue(), ContentType.JSON.getValue())
-                .build();
-        Response response = okHttpClient.newCall(request).execute();
-        if (!response.isSuccessful()) {
-            throw new IOException("Unexpected code " + response);
-        }
-        ResponseBody responseBody = response.body();
-        ChatCompletionResponse chatCompletionResponse = mapper.readValue(responseBody.string(), ChatCompletionResponse.class);
-        responseBody.close();
-        return chatCompletionResponse;
-    }
-
 
 }
 
