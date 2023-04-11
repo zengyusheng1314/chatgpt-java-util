@@ -35,7 +35,7 @@ public class ChatGptStreamTest {
     public void before() {
         Proxy proxy = Proxys.http("127.0.0.1", 10809);
         chatGpt = new ChatGptStream.ChatGptBuilder()
-                .setApiKey("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")
+                .setApiKey("sk-*****ekmX0FZJK3UYT1T3BlbkFJv790V6xFFi0Vo97ECCmj")
                 .setTimeout(300)
                 .setProxy(proxy)
                 .setApiHost(ApiInterface.DEFAULT_API_HOST)
