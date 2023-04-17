@@ -1,12 +1,14 @@
 package com.sean.chatgpt;
 
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sean.chatgpt.api.ApiInterface;
 import com.sean.chatgpt.enums.ChatGptModelEnum;
 import com.sean.chatgpt.exception.ChatException;
 import com.sean.chatgpt.pojo.chat.ChatCompletionRequest;
 import com.sean.chatgpt.pojo.chat.ChatCompletionResponse;
+import com.sean.chatgpt.pojo.chat.ErrorResponse;
 import com.sean.chatgpt.pojo.chat.Message;
 import okhttp3.*;
 
@@ -66,6 +68,7 @@ public class ChatGpt {
 
     /**
      * chatgpt 3.5 chat
+     *
      * @param message
      * @return
      */
@@ -75,21 +78,13 @@ public class ChatGpt {
                 .setMessages(Arrays.asList(Message.of(message)))
                 .build();
         ChatCompletionResponse response = null;
-        try {
-            response = this.chatCompletion(chatCompletion);
-        } catch (IOException e) {
-            throw new ChatException("接口响应失败！", e);
-        }
+        response = this.chatCompletion(chatCompletion);
         return response.getChoices().get(0).getMessage().getContent();
     }
 
     public String chat(ChatCompletionRequest chatCompletion) {
         ChatCompletionResponse response = null;
-        try {
-            response = this.chatCompletion(chatCompletion);
-        } catch (IOException e) {
-            throw new ChatException("接口响应失败！", e);
-        }
+        response = this.chatCompletion(chatCompletion);
         return response.getChoices().get(0).getMessage().getContent();
     }
 
@@ -145,21 +140,42 @@ public class ChatGpt {
     }
 
 
-    private ChatCompletionResponse chatCompletion(ChatCompletionRequest chatCompletion) throws IOException {
+    private ChatCompletionResponse chatCompletion(ChatCompletionRequest chatCompletion) {
         ObjectMapper mapper = new ObjectMapper();
-        String requestBody = mapper.writeValueAsString(chatCompletion);
+        String requestBody = null;
+        try {
+            requestBody = mapper.writeValueAsString(chatCompletion);
+        } catch (JsonProcessingException e) {
+            throw new ChatException("对象转json字符串失败！", e);
+        }
         Request request = new Request.Builder()
                 .url(apiHost + apiMethod)
                 .post(RequestBody.create(requestBody, MediaType.parse(ContentType.JSON.getValue())))
                 .header(Header.AUTHORIZATION.getValue(), "Bearer " + apiKey)
                 .header(Header.CONTENT_TYPE.getValue(), ContentType.JSON.getValue())
                 .build();
-        Response response = okHttpClient.newCall(request).execute();
-        if (!response.isSuccessful()) {
-            throw new IOException("Unexpected code " + response);
+        Response response = null;
+        try {
+            response = okHttpClient.newCall(request).execute();
+        } catch (IOException e) {
+            throw new ChatException("接口调用失败!", e);
         }
         ResponseBody responseBody = response.body();
-        ChatCompletionResponse chatCompletionResponse = mapper.readValue(responseBody.string(), ChatCompletionResponse.class);
+        if (!response.isSuccessful()) {
+            ErrorResponse errorResponse = null;
+            try {
+                errorResponse = mapper.readValue(responseBody.string(), ErrorResponse.class);
+            } catch (IOException e) {
+                throw new ChatException("xiangyresponseBody转String失败", e);
+            }
+            throw new ChatException(errorResponse.getError().getMessage());
+        }
+        ChatCompletionResponse chatCompletionResponse = null;
+        try {
+            chatCompletionResponse = mapper.readValue(responseBody.string(), ChatCompletionResponse.class);
+        } catch (IOException e) {
+            throw new ChatException("responseBody转String失败", e);
+        }
         responseBody.close();
         return chatCompletionResponse;
     }
